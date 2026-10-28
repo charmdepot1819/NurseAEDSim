@@ -1,0 +1,1070 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>NurseAED Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a clinical skills bench. Patient + actions on the left, the AED device on the right, a CPR console docked at the bottom. */
+:root{
+  --bg:#eef2f0; --surface:#ffffff; --surface-2:#f6f8f7; --ink:#14201c; --muted:#56665f; --line:#d3ddd9;
+  --accent:#0a7556; --accent-ink:#ffffff; --accent-soft:#dcefe8;
+  --ok:#1b7f47; --ok-soft:#dff2e6; --warn:#a85f00; --warn-soft:#fbeed6; --danger:#c22b2b; --danger-soft:#fbe1df;
+  --skin:#e8c4a6; --skin-line:#b98c6b; --shirt:#1f6fd1; --shirt-line:#0f3f7a;
+  /* the device keeps one look in both themes */
+  --case:#14523f; --case-edge:#0b3a2c; --case-ink:#e9f5ef; --lcd:#08120f; --lcd-ink:#7df0b8; --lcd-dim:#2e5c49; --shock:#ff7a1a; --shock-ink:#2a1200;
+  --font-display:"Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body:"Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0e1513; --surface:#162019; --surface-2:#1b2722; --ink:#e3ece8; --muted:#9db0a8; --line:#2b3a34;
+  --accent:#3cc596; --accent-ink:#04150f; --accent-soft:#173a2e;
+  --ok:#55c985; --ok-soft:#173623; --warn:#e8a541; --warn-soft:#3a2a10; --danger:#ff7066; --danger-soft:#3d1a18;
+  --skin:#c79f82; --skin-line:#8a6449; --shirt:#2f7fe0; --shirt-line:#103f78; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0e1513; --surface:#162019; --surface-2:#1b2722; --ink:#e3ece8; --muted:#9db0a8; --line:#2b3a34;
+  --accent:#3cc596; --accent-ink:#04150f; --accent-soft:#173a2e;
+  --ok:#55c985; --ok-soft:#173623; --warn:#e8a541; --warn-soft:#3a2a10; --danger:#ff7066; --danger-soft:#3d1a18;
+  --skin:#c79f82; --skin-line:#8a6449; --shirt:#2f7fe0; --shirt-line:#103f78; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 28px}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(1.6rem,3.2vw,2.3rem);font-weight:800;letter-spacing:-.01em}
+h2{font-size:1.25rem;font-weight:700}
+h3{font-size:1rem;font-weight:700}
+p{margin:0}
+a{color:var(--accent)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.eyebrow{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.muted{color:var(--muted)}
+.mono{font-family:var(--font-mono)}
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+.brand{display:flex;gap:12px;align-items:center;background:none;border:none;padding:0;text-align:left;cursor:pointer;border-radius:12px}
+.brand:hover h1{color:var(--accent)}
+.logo{width:40px;height:40px;border-radius:10px;background:var(--case);display:grid;place-items:center;flex:none}
+.disclaimer{background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:var(--r);padding:10px 14px;font-size:.9rem;margin-bottom:18px}
+.disclaimer b{color:var(--warn)}
+.settings{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:.88rem}
+.settings label{display:flex;gap:6px;align-items:center}
+.trainer-set{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:space-between;margin-top:10px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;font-size:.88rem;font-weight:600}
+.trainer-set select,.settings select{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 6px;font:inherit}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+/* start screen */
+.intro{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px;margin-bottom:20px}
+.intro p{max-width:65ch}
+.choose-head{display:grid;gap:4px;margin-bottom:14px}
+.choose-title{font-size:clamp(1.5rem,3vw,2rem);font-weight:800}
+.scen-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,215px),1fr));gap:14px}
+.scen .go{margin-top:auto;padding-top:10px;font-weight:700;color:var(--muted)}
+.scen.selected{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent)}
+.scen.selected .go{color:var(--accent)}
+.start-row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-top:18px}
+.start-aed{display:inline-flex;align-items:center;gap:10px;background:var(--shock);color:var(--shock-ink);border:none;border-radius:14px;padding:16px 32px;font-family:var(--font-display);font-weight:800;font-size:1.3rem;letter-spacing:.02em;box-shadow:0 6px 18px rgba(255,122,26,.35)}
+.start-aed:hover{filter:brightness(1.05);transform:translateY(-1px)}
+@media (max-width:460px){.start-aed{width:100%;justify-content:center}}
+.scen h3{font-size:1.15rem}
+.scen .focus{font-size:.9rem;color:var(--muted)}
+details.how{margin-top:22px}
+.scen{text-align:left;background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:18px;min-height:180px;display:flex;flex-direction:column;gap:6px;transition:border-color .15s, transform .15s}
+.scen:hover,.scen:focus-visible{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.08)}
+.scen .tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:.72rem;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line)}
+.tag.shock{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.tag.noshock{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.steps{margin:0;padding-left:1.2em;display:grid;gap:4px;font-size:.92rem}
+/* sim */
+.simbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.simbar .stats{display:flex;gap:18px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.stat b{font-family:var(--font-mono);font-size:1.05rem}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;font-weight:600;font-size:.9rem;text-align:left}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.done{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.btn.done::before{content:"✓ "}
+.btn.sel{outline:2px solid var(--accent);outline-offset:1px}
+.bench{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;align-items:start}
+.story{border-left:4px solid var(--accent);background:var(--surface-2);padding:10px 12px;border-radius:0 8px 8px 0;font-size:.95rem}
+.story.alert{border-left-color:var(--warn)}
+.choice-list{display:grid;gap:8px;margin-top:10px}
+.body-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:12px 0}
+.body-wrap figure{margin:0;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center}
+.body-wrap figcaption{font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.body-wrap svg{width:100%;height:auto;max-width:100%;display:block}
+.zone{cursor:pointer}
+.zone circle{fill:transparent;stroke:var(--accent);stroke-width:1.5;stroke-dasharray:4 3;opacity:.0;transition:opacity .15s}
+.placing .zone circle{opacity:.85}
+.zone:hover circle,.zone:focus circle{fill:color-mix(in srgb,var(--accent) 25%,transparent);opacity:1}
+.zone:focus{outline:none}
+.group{display:grid;gap:6px;margin-top:12px}
+.group .row{display:flex;flex-wrap:wrap;gap:6px}
+.hint{font-size:.98rem;padding:10px 14px;border-radius:10px;background:var(--accent-soft);color:var(--ink);display:flex;gap:12px;align-items:center}
+.hint .num{flex:none;width:38px;height:38px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--font-display);font-weight:800;font-size:1.15rem}
+.hint .ttl{display:block;font-family:var(--font-display);font-weight:800;font-size:1.05rem;color:var(--accent)}
+.stepper{list-style:none;margin:0 0 14px;padding:0;display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px}
+.stepper li{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:.74rem;font-weight:600;color:var(--muted);padding:8px 4px;border-radius:10px;background:var(--surface);border:1px solid var(--line);line-height:1.2}
+.stepper .n{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.9rem;background:var(--surface-2);border:2px solid var(--line);color:var(--muted)}
+.stepper li.done{color:var(--ok)}
+.stepper li.done .n{background:var(--ok);border-color:var(--ok);color:#fff}
+.stepper li.cur{color:var(--ink);background:var(--accent-soft);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.stepper li.cur .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+@media (max-width:880px){.stepper{grid-template-columns:repeat(9,minmax(64px,1fr));overflow-x:auto;padding-bottom:4px}}
+.target{animation:glow 1.1s ease-in-out infinite;position:relative;z-index:1}
+@keyframes glow{0%,100%{box-shadow:0 0 0 3px var(--warn)}50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--warn) 35%,transparent)}}
+#bodyWrap.target{border-radius:10px}
+/* AED device */
+.aed{background:linear-gradient(160deg,var(--case),var(--case-edge));color:var(--case-ink);border-radius:26px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.15)}
+.aed-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.aed-head .model{font-family:var(--font-display);font-weight:800;letter-spacing:.14em;font-size:.85rem}
+.aed-head .heart{font-size:.7rem;letter-spacing:.1em;opacity:.8}
+.lcd{background:var(--lcd);border-radius:12px;padding:10px 12px;color:var(--lcd-ink);font-family:var(--font-mono);min-height:210px;display:flex;flex-direction:column;gap:6px;border:2px solid #000}
+.lcd.off{color:var(--lcd-dim)}
+#lcdTimer[data-beat="1"]{color:#fff;text-shadow:0 0 6px var(--lcd-ink)}
+.lcd .row1{display:flex;justify-content:space-between;font-size:.78rem;opacity:.9;font-variant-numeric:tabular-nums}
+.lcd .prompt{font-size:1.02rem;font-weight:600;min-height:3em;line-height:1.35}
+.lcd canvas{width:100%;height:84px;display:block}
+.aed-controls{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;margin-top:14px}
+.round{width:64px;height:64px;border-radius:50%;border:3px solid rgba(255,255,255,.25);display:grid;place-items:center;font-weight:800;font-size:.7rem;letter-spacing:.06em;text-align:center;line-height:1.1}
+.power{background:#1e9b61;color:#fff}
+.power.on{box-shadow:0 0 0 4px rgba(125,240,184,.35)}
+.shockbtn{width:84px;height:84px;background:#5b3a22;color:#b98a66;border-color:rgba(0,0,0,.35)}
+.shockbtn.armed{background:var(--shock);color:var(--shock-ink);animation:flash .5s steps(2) infinite}
+@keyframes flash{50%{box-shadow:0 0 0 10px rgba(255,122,26,.45)}}
+.port{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase}
+.port button{background:#0b2a20;color:var(--case-ink);border:2px dashed rgba(255,255,255,.35);border-radius:8px;padding:8px 12px;font-size:.78rem;font-weight:700}
+.port button.plugged{border-style:solid;background:#1e9b61;color:#fff}
+.prompt-log{margin-top:12px;background:rgba(0,0,0,.22);border-radius:10px;padding:8px 10px;max-height:150px;overflow:auto;font-family:var(--font-mono);font-size:.76rem;display:grid;gap:2px}
+.prompt-log .t{opacity:.6;margin-right:6px}
+/* console */
+.clear-pop{position:fixed;left:0;right:0;bottom:0;z-index:15;display:flex;justify-content:center;padding:16px max(16px,env(safe-area-inset-left,0px));padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));pointer-events:none}
+.clear-pop[hidden],.settings[hidden],.disclaimer[hidden],.extra[hidden]{display:none}
+.clear-card{pointer-events:auto;background:var(--shock);color:var(--shock-ink);border-radius:18px;padding:16px 20px;display:grid;gap:10px;justify-items:center;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.35);width:min(440px,100%);animation:popin .25s ease-out}
+.clear-title{font-family:var(--font-display);font-weight:800;font-size:1.15rem}
+.clear-btn-big{background:var(--shock-ink);color:#fff;border:none;border-radius:12px;padding:14px 28px;font-family:var(--font-display);font-weight:800;font-size:1.35rem;width:100%}
+@keyframes popin{from{transform:translateY(20px);opacity:0}}
+.console-old{position:sticky;bottom:0;z-index:5;margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 20px rgba(0,0,0,.08);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center}
+.team-status{font-weight:700;font-size:1.02rem;display:flex;align-items:center;gap:8px}
+.team-status .dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
+.team-status.on .dot{background:var(--danger);animation:pulse .545s infinite}
+.team-status.off .dot{background:var(--ok)}
+@keyframes pulse{50%{transform:scale(1.5)}}
+.compress{width:118px;height:118px;border-radius:50%;border:none;background:var(--danger);color:#fff;font-weight:800;letter-spacing:.06em;font-size:.95rem;touch-action:manipulation;user-select:none;-webkit-user-select:none;position:relative}
+.compress:active,.compress.hit{transform:scale(.94)}
+.compress:disabled{background:var(--line);color:var(--muted)}
+.compress small{display:block;font-weight:600;font-size:.68rem;opacity:.85;letter-spacing:.02em}
+.gauge{display:grid;gap:6px;min-width:0}
+.gauge .bar{position:relative;height:16px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden}
+.gauge .band{position:absolute;top:0;bottom:0;background:var(--ok-soft);border-left:2px solid var(--ok);border-right:2px solid var(--ok)}
+.gauge .scale span{position:absolute;top:0;transform:translateX(-50%)}
+.gauge .scale span:first-child{transform:none}.gauge .scale span:last-child{transform:none}
+.gauge .needle{position:absolute;top:-2px;bottom:-2px;width:4px;border-radius:2px;background:var(--ink);transition:left .15s}
+.gauge .scale{position:relative;height:1.1em;font-size:.7rem;color:var(--muted);font-family:var(--font-mono)}
+.readouts{display:flex;flex-wrap:wrap;gap:6px 16px;font-variant-numeric:tabular-nums;font-size:.86rem}
+.readouts b{font-family:var(--font-mono);font-size:1rem}
+.side-btns{display:grid;gap:8px}
+.big{padding:10px 14px;font-weight:700;border-radius:10px}
+.clear-btn{background:var(--warn);color:#fff;border:none}
+.status-pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.75rem;font-weight:700}
+.st-ok{background:var(--ok-soft);color:var(--ok)} .st-warn{background:var(--warn-soft);color:var(--warn)} .st-bad{background:var(--danger-soft);color:var(--danger)} .st-na{background:var(--surface-2);color:var(--muted)}
+.seq-flash{position:fixed;inset:0;z-index:25;display:grid;place-items:center;padding:16px;pointer-events:none}
+.seq-flash[hidden]{display:none}
+.seq-card{background:var(--danger);color:#fff;border-radius:16px;padding:18px 24px;max-width:min(480px,92vw);text-align:center;box-shadow:0 14px 40px rgba(0,0,0,.35);animation:seqblink .5s steps(2) 4}
+.seq-title{font-family:var(--font-display);font-weight:800;font-size:1.5rem;letter-spacing:.02em}
+.seq-msg{font-size:1.05rem;margin-top:4px}
+@keyframes seqblink{50%{opacity:.25}}
+.decision{position:fixed;inset:0;z-index:30;background:var(--bg);display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-left,0px));overflow:auto}
+.decision[hidden]{display:none}
+.decision-card{width:min(620px,100%);background:var(--surface);border:2px solid var(--accent);border-radius:18px;padding:24px;display:grid;gap:10px;box-shadow:0 18px 50px rgba(0,0,0,.18)}
+.decision-card h2{font-size:clamp(1.3rem,3vw,1.7rem)}
+.decision-opt{padding:14px 16px;font-size:1rem;line-height:1.4}
+.decision-opt:hover{background:var(--accent-soft)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:.9rem;z-index:20;max-width:min(560px,90vw);opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.flashfx{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:30}
+.flashfx.go{animation:fx .45s ease-out}
+@keyframes fx{0%{opacity:.85}100%{opacity:0}}
+/* debrief */
+.score-head{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;margin-bottom:14px}
+.score{font-family:var(--font-display);font-weight:800;font-size:3rem;line-height:1}
+.table-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:14px 0}
+.metric{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px}
+.metric b{display:block;font-family:var(--font-mono);font-size:1.25rem}
+.metric span{font-size:.78rem;color:var(--muted)}
+.timeline{font-family:var(--font-mono);font-size:.8rem;display:grid;gap:3px;max-height:320px;overflow:auto;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px}
+.timeline .bad{color:var(--danger)} .timeline .good{color:var(--ok)} .timeline .aed{color:var(--accent)}
+details.ref{margin-top:18px}
+details.ref summary{cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:1.1rem;padding:8px 0}
+.qr{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
+.qr .item{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.9rem}
+.qr .item b{display:block;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.refs{font-size:.86rem;display:grid;gap:6px;padding-left:1.3em;margin:0}
+sup.c{font-size:.7em;color:var(--accent);font-weight:700}
+.copyright{margin-top:14px;padding-top:10px;border-top:1px solid var(--line);font-size:.8rem;color:var(--muted);text-align:center}
+footer{margin-top:22px;font-size:.82rem;color:var(--muted)}
+@media (max-width:880px){
+  .bench,.intro{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:460px){ .body-wrap{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
+@media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <button class="brand" id="homeBtn" aria-label="NurseAED Simulator: back to the start screen" title="Back to the start screen">
+      <div class="logo" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.3-9.6C1.4 7.7 3.8 4 7.4 4c2 0 3.6 1.1 4.6 2.6C13 5.1 14.6 4 16.6 4c3.6 0 6 3.7 4.7 7.4C19.5 16.4 12 21 12 21z" fill="#e9f5ef"/><path d="M13 7l-3 6h3l-2 5 5-7h-3l2-4z" fill="#ff7a1a"/></svg>
+      </div>
+      <div>
+        <div class="eyebrow">Nursing skills lab</div>
+        <h1>NurseAED Simulator</h1>
+      </div>
+    </button>
+    <div class="settings" id="startSettings" aria-label="Settings">
+      <label><input type="checkbox" id="setGuided" checked> Coaching hints</label>
+    </div>
+  </header>
+
+  <div class="disclaimer" id="disclaimer"><b>Under ongoing development.</b> Learning aid only, not for clinical reference. Not a medical device, and not a substitute for BLS certification, local policy or the AED maker's instructions.</div>
+
+  <!-- START -->
+  <section id="startView">
+    <div class="choose-head">
+      <h2 class="choose-title">Choose a scenario</h2>
+      <p class="muted">Pick a patient, then press Start AED. Your team does the CPR; you operate the AED.</p>
+    </div>
+    <div class="scen-grid" id="scenGrid" role="radiogroup" aria-label="Scenarios"></div>
+    <div class="start-row">
+      <button class="start-aed" id="startAedBtn">
+        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h6l-2 8 9-12h-6l2-8z" fill="currentColor"/></svg>
+        Start AED
+      </button>
+      <span class="muted" id="selName"></span>
+    </div>
+    <details class="ref how">
+      <summary>How it works</summary>
+      <div class="intro">
+        <div class="panel" style="display:grid;gap:10px">
+          <p>CPR is already under way and your team keeps doing it. You are the nurse running the AED: switch it on, prepare the chest, choose and place the right pads, connect them, follow the voice prompts, keep everyone clear for analysis and shocks, and deliver the shock safely. Every step is timed and scored against the AHA 2025 and ERC 2025 guidelines, with a debrief at the end.</p>
+          <p class="muted" style="font-size:.9rem">When the AED advises a shock, a <b>“Stand clear!”</b> prompt appears: call it, then press the flashing shock button. Use headphones or speakers to hear the AED.</p>
+        </div>
+        <div class="panel">
+          <div class="eyebrow" style="margin-bottom:6px">AED operation you will be scored on</div>
+          <ol class="steps">
+            <li>Power on the AED as soon as it arrives</li>
+            <li>Expose and prepare the chest (dry, shave, remove patches, bra)</li>
+            <li>Choose adult or paediatric pads for the patient</li>
+            <li>Place the pads: anterolateral or anteroposterior, clear of devices</li>
+            <li>Connect the pads to the AED</li>
+            <li>Hands off while the AED analyses the rhythm</li>
+            <li>Shock advised: clear everyone, then press shock without delay</li>
+            <li>Keep the AED on and the pads attached, even after signs of life</li>
+          </ol>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- SIM -->
+  <section id="simView" hidden>
+    <div class="simbar">
+      <div>
+        <div class="eyebrow" id="simAge"></div>
+        <h2 id="simTitle"></h2>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="muted">Elapsed </span><b id="clock">0:00</b></div>
+        <div class="stat"><span class="muted">Shocks </span><b id="shockCount">0</b></div>
+        <div class="stat"><span class="muted">Analyses </span><b id="anCount">0</b></div>
+        <button class="btn" id="endBtn">End and debrief</button>
+      </div>
+    </div>
+
+    <ol class="stepper" id="stepper" aria-label="AED steps"></ol>
+    <div class="bench">
+      <div class="panel">
+        <div class="story" id="story"></div>
+        <div class="hint" id="hint" style="margin-top:10px"></div>
+        <div class="body-wrap" id="bodyWrap">
+          <figure>
+            <svg id="front" viewBox="0 0 220 215" role="group" aria-label="Patient chest, front view"></svg>
+            <figcaption>Front</figcaption>
+          </figure>
+          <figure>
+            <svg id="back" viewBox="0 0 220 215" role="group" aria-label="Patient back"></svg>
+            <figcaption>Back</figcaption>
+          </figure>
+        </div>
+        <div id="actions"></div>
+      </div>
+
+      <div>
+        <div class="aed" aria-label="AED trainer">
+          <div class="aed-head">
+            <span class="model">AED · TRAINER</span>
+            <span class="heart">AUTOMATED EXTERNAL DEFIBRILLATOR</span>
+          </div>
+          <div class="lcd off" id="lcd">
+            <div class="row1"><span id="lcdState">OFF</span><span id="lcdTimer"></span></div>
+            <canvas id="ecg" height="84"></canvas>
+            <div class="prompt" id="lcdPrompt" aria-live="polite"></div>
+          </div>
+          <div class="aed-controls">
+            <button class="round power" id="powerBtn" aria-label="Power on AED">ON<br>OFF</button>
+            <div class="port">
+              <span>Pad connector</span>
+              <button id="plugBtn">Plug in</button>
+            </div>
+            <button class="round shockbtn" id="shockBtn" aria-label="Shock button" disabled>
+              <svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h6l-2 8 9-12h-6l2-8z" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <div class="prompt-log" id="promptLog" aria-label="AED prompt history"><span style="opacity:.6">AED prompts you hear will be listed here.</span></div>
+        </div>
+        <label class="trainer-set" for="setCycle">
+          <span>CPR time between rhythm analyses</span>
+          <select id="setCycle">
+            <option value="120">2 min (real AED)</option>
+            <option value="60">1 min (time-compressed)</option>
+            <option value="30">30 s (time-compressed)</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="clear-pop" id="clearPop" role="alertdialog" aria-labelledby="clearPopTitle" hidden>
+      <div class="clear-card">
+        <div class="eyebrow" style="color:var(--shock-ink)">AED: shock advised</div>
+        <div class="clear-title" id="clearPopTitle">Make sure nobody is touching the patient</div>
+        <button class="clear-btn-big" id="clearBtn">“Stand clear!” <span class="mono" style="opacity:.7;font-size:.8em">C</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEBRIEF -->
+  <section id="debriefView" hidden>
+    <div class="panel">
+      <div class="score-head">
+        <div>
+          <div class="eyebrow">Debrief</div>
+          <h2 id="dbTitle"></h2>
+          <p class="muted" id="dbOutcome"></p>
+        </div>
+        <div><div class="score" id="dbScore"></div><div class="muted" style="font-size:.85rem">of applicable criteria met</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
+          <button class="btn primary" id="retryBtn">Run again</button>
+          <button class="btn" id="menuBtn">Choose another scenario</button>
+        </div>
+      </div>
+      <div class="metrics" id="dbMetrics"></div>
+      <h3 style="margin:8px 0">Performance criteria</h3>
+      <div class="table-wrap"><table><thead><tr><th>Criterion</th><th>Result</th><th>What happened</th><th>Standard</th></tr></thead><tbody id="dbTable"></tbody></table></div>
+      <h3 style="margin:18px 0 8px">Teaching points for this scenario</h3>
+      <ul id="dbTeach" style="margin:0;padding-left:1.2em;display:grid;gap:4px"></ul>
+      <h3 style="margin:18px 0 8px">Timeline</h3>
+      <div class="timeline" id="dbTimeline"></div>
+    </div>
+  </section>
+
+  <details class="ref extra" id="qrDetails">
+    <summary>AED prompts and what to do</summary>
+    <div class="table-wrap"><table>
+      <thead><tr><th>AED prompt</th><th>What you do</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">“Apply pads to patient's bare chest.”</td><td>The team continues CPR. Expose the chest; dry it, shave dense hair at pad sites, remove medication patches; peel and apply pads as pictured.</td></tr>
+        <tr><td class="mono">“Plug in pads connector.”</td><td>Push the pad cable firmly into the AED port (some models are pre-connected).</td></tr>
+        <tr><td class="mono">“Check electrode pads.”</td><td>Poor skin contact. Press pads firmly; dry or shave the skin, or replace the pads.</td></tr>
+        <tr><td class="mono">“Analyzing heart rhythm. Do not touch the patient.”</td><td>Compressions stop. Nobody touches the patient or the bed.</td></tr>
+        <tr><td class="mono">“Motion detected. Stop motion.”</td><td>Someone is still touching or moving the patient. Stop all movement.</td></tr>
+        <tr><td class="mono">“Shock advised. Charging. Stay clear of patient.”</td><td>Keep everyone clear. Look along the patient, and check oxygen is not blowing over the chest.</td></tr>
+        <tr><td class="mono">“Press the flashing shock button now.”</td><td>Call “Stand clear!” once more, look, then press the shock button without delay.</td></tr>
+        <tr><td class="mono">“Shock delivered. Begin CPR.”</td><td>The team restarts compressions immediately. No pause for a pulse check.</td></tr>
+        <tr><td class="mono">“No shock advised. Start CPR.”</td><td>The team restarts compressions immediately. A non-shockable rhythm (asystole or PEA) still needs high-quality CPR.</td></tr>
+        <tr><td class="mono">“Stop CPR. Do not touch the patient.”</td><td>2-minute cycle complete. Hands off for reanalysis. The team swaps compressors now to limit fatigue.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted" style="font-size:.82rem;margin-top:6px">Wording varies between manufacturers. These prompts follow the common pattern of AED trainers; always follow the device you have.</p>
+  </details>
+
+  <details class="ref extra">
+    <summary>Guideline quick reference</summary>
+    <div class="qr">
+      
+      
+      
+      
+      
+      <div class="item"><b>Pauses</b>Pre-shock and post-shock pauses as short as possible. Resume compressions immediately after a shock instead of pausing for a rhythm or pulse check.<sup class="c">1,3</sup></div>
+      <div class="item"><b>When to use the AED</b>CPR until the AED is applied; attach it as soon as it is available. Pulse and breathing check: no more than 10 s.<sup class="c">1,2</sup></div>
+      <div class="item"><b>Pad position</b>Bare chest, anterolateral or anteroposterior. It may be reasonable to adjust a bra rather than remove it.<sup class="c">1</sup></div>
+      <div class="item"><b>Children under 8</b>Use paediatric pads or a dose attenuator if available; if not, a standard AED may be used.<sup class="c">2</sup></div>
+      <div class="item"><b>Implanted device</b>Do not place a pad over a pacemaker or ICD; keep at least 8 cm away or use an anteroposterior position.<sup class="c">6</sup></div>
+      <div class="item"><b>Time to first shock</b>In-hospital VF/pVT, defibrillation delayed beyond 2 minutes is associated with lower survival to discharge.<sup class="c">5</sup></div>
+      
+    </div>
+  </details>
+
+  <details class="ref extra">
+    <summary>References</summary>
+    <ol class="refs">
+      <li>American Heart Association. Part 7: Adult Basic Life Support. 2025 AHA Guidelines for CPR and Emergency Cardiovascular Care. <i>Circulation</i>. 2025;152(16 Suppl 2). doi:10.1161/CIR.0000000000001369. <a href="https://cpr.heart.org/en/resuscitation-science/cpr-and-ecc-guidelines/adult-basic-life-support" target="_blank" rel="noopener">cpr.heart.org</a></li>
+      <li>American Heart Association &amp; American Academy of Pediatrics. Part 6: Pediatric Basic Life Support. 2025 Guidelines for CPR and ECC. <i>Circulation</i>. 2025;152(16 Suppl 2):S424–S447. doi:10.1161/CIR.0000000000001370. <a href="https://doi.org/10.1161/CIR.0000000000001370" target="_blank" rel="noopener">doi.org</a></li>
+      <li>Smyth MA, van Goor S, Hansen CM, et al. European Resuscitation Council Guidelines 2025: Adult Basic Life Support. <i>Resuscitation</i>. 2025;215 Suppl 1:110771. doi:10.1016/j.resuscitation.2025.110771. <a href="https://doi.org/10.1016/j.resuscitation.2025.110771" target="_blank" rel="noopener">doi.org</a></li>
+      <li>American Heart Association. Highlights of the 2025 AHA Guidelines for CPR and ECC. <a href="https://cpr.heart.org/-/media/CPR-Files/2025-documents-for-cpr-heart-edits-posting/Resuscitation-Science/252500_Hghlghts_2025ECCGuidelines.pdf" target="_blank" rel="noopener">PDF</a></li>
+      <li>Chan PS, Krumholz HM, Nichol G, Nallamothu BK. Delayed time to defibrillation after in-hospital cardiac arrest. <i>N Engl J Med</i>. 2008;358:9–17. <a href="https://doi.org/10.1056/NEJMoa0706467" target="_blank" rel="noopener">doi.org</a></li>
+      <li>Soar J, Böttiger BW, Carli P, et al. European Resuscitation Council Guidelines 2021: Adult advanced life support. <i>Resuscitation</i>. 2021;161:115–151. <a href="https://doi.org/10.1016/j.resuscitation.2021.02.010" target="_blank" rel="noopener">doi.org</a></li>
+            <li>Chest preparation (dry, shave, remove patches) and AED operation: AHA BLS Provider Manual, special AED situations, and the AED manufacturer's instructions for use.</li>
+    </ol>
+    <p class="muted" style="font-size:.82rem;margin-top:8px">Simulator pass marks that are not set by a guideline (for example, "shock within 5 s of the button arming") are labelled as simulator targets in the debrief.</p>
+  </details>
+
+  <footer class="extra">NurseAED Simulator · for education only · scenarios and timings are simplified. Many AEDs show no ECG; the waveform here is for teaching.</footer>
+  <div class="copyright">© 2026 Ralph Marco Alonzo. All rights reserved. · Under ongoing development: learning aid only, not for clinical reference.</div>
+</div>
+<div class="decision" id="decision" role="dialog" aria-modal="true" aria-labelledby="decisionTitle" hidden>
+  <div class="decision-card">
+    <div class="eyebrow">Step 9 · Decision</div>
+    <h2 id="decisionTitle">The patient coughs, moves and opens their eyes</h2>
+    <p class="muted">The team stops CPR and finds a pulse with normal breathing. What do you do with the AED?</p>
+    <div class="choice-list" id="decisionOpts"></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<div class="seq-flash" id="seqFlash" role="alert" hidden><div class="seq-card"><div class="seq-title" id="seqTitle">⚠ Wrong sequence</div><div class="seq-msg" id="seqMsg"></div></div></div>
+<div class="flashfx" id="flashfx"></div>
+
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s);
+const nowMs=()=>performance.now();
+
+/* ---------- settings ---------- */
+const settings={voice:true,guided:true,cycle:30};
+try{const s=JSON.parse(localStorage.getItem('nurseaed-settings-v2')||'{}');Object.assign(settings,s);}catch(e){}
+function saveSettings(){try{localStorage.setItem('nurseaed-settings-v2',JSON.stringify(settings));}catch(e){}}
+settings.voice=true; $('#setGuided').checked=settings.guided; $('#setCycle').value=String(settings.cycle);
+$('#setGuided').onchange=e=>{settings.guided=e.target.checked;saveSettings()};
+$('#setCycle').onchange=e=>{settings.cycle=+e.target.value;saveSettings()};
+
+/* ---------- scenarios ---------- */
+const SCENARIOS=[
+ {id:'vf',focus:'shockable rhythm, hairy chest, signs of life',title:'Collapse in the hospital lobby',age:'Adult · 58-year-old man',group:'adult',rhythms:['VF','VF','ROSC'],
+  chest:{hair:true},
+  story:'A visitor has collapsed in the outpatient lobby. Your colleague confirmed cardiac arrest and is doing CPR. You have just arrived with the lobby AED.',
+  teach:['VF is shockable: the earliest possible shock is the main determinant of survival.','Dense chest hair stops pads sticking. Shave the pad sites with the razor from the AED kit.','Once the patient shows signs of life, leave the pads on and the AED switched on in case of re-arrest.']},
+ {id:'pvt',focus:'bra and medication patch, shockable rhythm',title:'Pulseless VT on the ward',age:'Adult · 72-year-old woman',group:'adult',rhythms:['pVT','VF','VF'],
+  chest:{bra:true,patch:true},
+  story:'Your ward patient was found unresponsive in bed and CPR is in progress. She wears a bra and has a medication patch on her right upper chest. You bring the ward AED.',
+  teach:['Pulseless VT is treated like VF: it is shockable.','Remove medication patches from pad sites and wipe the skin; a patch under a pad can impede current and cause burns.','AHA 2025: it may be reasonable to move a bra aside rather than remove it, to save time and preserve dignity.']},
+ {id:'asys',focus:'wet chest, no shock advised',title:'Unwitnessed arrest in the bathroom',age:'Adult · 81-year-old man',group:'adult',rhythms:['ASYS','ASYS','ASYS'],
+  chest:{wet:true},
+  story:'A patient was found collapsed in the shower room. The team has moved him to a dry floor and started CPR. His chest is wet. You arrive with the AED.',
+  teach:['Asystole is not shockable. The AED will not let you shock, so the team continues high-quality CPR.','Make sure the patient is not lying in water and dry the chest before applying pads, or the AED reports poor pad contact.','No shock advised means CPR restarts immediately.']},
+ {id:'pea',focus:'pacemaker, pad position, no shock advised',title:'Pacemaker patient, PEA',age:'Adult · 66-year-old woman',group:'adult',rhythms:['PEA','PEA','PEA'],
+  chest:{device:true},
+  story:'A day-surgery patient collapsed walking to the bathroom; CPR is under way. She has a permanent pacemaker under her right collarbone. You arrive with the AED.',
+  teach:['PEA: an organised rhythm on a screen does not mean there is a pulse. The AED treats it as non-shockable.','Do not place a pad over an implanted device. Move it at least 8 cm away or use anteroposterior placement.','Many AEDs have no screen at all, so rely on the prompts, not on what the trace looks like.']},
+ {id:'child',focus:'paediatric pads, small chest',title:'Child collapses at sports day',age:'Child · 7-year-old boy, about 24 kg',group:'child',rhythms:['VF','ROSC'],
+  chest:{wet:true},
+  story:'A 7-year-old collapsed during a race at the hospital family sports day and CPR has started. He is sweating heavily. The first-aid AED kit has adult pads and a paediatric pad set.',
+  teach:['Children under 8: use paediatric pads or a dose attenuator if available; if not, adult pads may be used.','Pads must not touch each other. If the chest is small, use front-and-back placement.','Dry a sweaty chest so the pads make good contact.']}
+];
+const RH_NAMES={VF:'Ventricular fibrillation',pVT:'Pulseless ventricular tachycardia',ASYS:'Asystole',PEA:'Pulseless electrical activity',ROSC:'Organised rhythm (return of circulation)'};
+const SHOCKABLE=r=>r==='VF'||r==='pVT';
+const ZONES={
+ R_INFRA:{label:'right upper chest, below the collarbone',view:'front',x:66,y:78},
+ L_INFRA:{label:'left upper chest, below the collarbone',view:'front',x:134,y:78},
+ L_APEX:{label:'left side, below the armpit (mid-axillary line)',view:'front',x:152,y:138},
+ ANT:{label:'front, left of the sternum',view:'front',x:118,y:116},
+ ABD:{label:'upper abdomen',view:'front',x:100,y:192},
+ POST:{label:'back, between the shoulder blades',view:'back',x:86,y:104},
+ LOWBACK:{label:'lower back',view:'back',x:100,y:196}
+};
+const PREP={expose:{label:'Expose the chest'},bra:{label:'Move bra aside'},dry:{label:'Dry the chest with a towel'},shave:{label:'Shave pad sites with razor'},patch:{label:'Remove medication patch, wipe skin'}};
+function requiredPrep(sc){const c=sc.chest,r=['expose'];if(c.bra)r.push('bra');if(c.wet)r.push('dry');if(c.hair)r.push('shave');if(c.patch)r.push('patch');return r;}
+
+/* ---------- audio ---------- */
+let actx=null;
+function audio(){ if(!actx){ try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } if(actx&&actx.state==='suspended')actx.resume(); return actx; }
+function tone(freq,dur,type='sine',vol=0.15,when=0,slideTo=null){
+  const a=audio(); if(!a) return;
+  const t=a.currentTime+when, o=a.createOscillator(), g=a.createGain();
+  o.type=type; o.frequency.setValueAtTime(freq,t); if(slideTo) o.frequency.linearRampToValueAtTime(slideTo,t+dur);
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t+dur+0.05);
+}
+let lastUtter=null;
+function speak(text){ lastUtter=null; if(!settings.voice) return; try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.rate=1; lastUtter=u; speechSynthesis.speak(u);}catch(e){} }
+
+/* ---------- ui helpers ---------- */
+let toastTimer=null;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2600);}
+function fmt(sec){ if(sec==null||!isFinite(sec)) return '–'; sec=Math.max(0,sec); const m=Math.floor(sec/60), s=Math.floor(sec%60); return m+':'+String(s).padStart(2,'0'); }
+function f1(x){return (Math.round(x*10)/10).toFixed(1);}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* ---------- scenario cards ---------- */
+SCENARIOS.forEach(sc=>{
+  const b=document.createElement('button'); b.className='scen'; b.id='scen-'+sc.id;
+  const shock=sc.rhythms.some(SHOCKABLE);
+  b.innerHTML=`<div class="tags"><span class="tag">${sc.group==='child'?'Child':'Adult'}</span><span class="tag ${shock?'shock':'noshock'}">${shock?'Shockable':'Non-shockable'}</span></div>
+  <h3>${esc(sc.title)}</h3><div style="font-weight:600;font-size:.9rem">${esc(sc.age)}</div><p class="focus">Practise: ${esc(sc.focus)}</p><span class="go">Selected</span>`;
+  b.setAttribute('role','radio');
+  b.onclick=()=>selectScen(sc);
+  $('#scenGrid').appendChild(b);
+});
+
+let selected=SCENARIOS[0];
+function selectScen(sc){ selected=sc; document.querySelectorAll('.scen').forEach(el=>{const on=el.id==='scen-'+sc.id; el.classList.toggle('selected',on); el.setAttribute('aria-checked',on); el.querySelector('.go').textContent=on?'✓ Selected':'Select';}); $('#selName').textContent='Selected: '+sc.title; }
+selectScen(selected);
+/* ---------- state ---------- */
+let S=null, gen=0;
+const T=()=>S?(nowMs()-S.t0)/1000:0;
+function later(ms,fn){const g=gen;setTimeout(()=>{if(S&&!S.ended&&g===gen)fn();},ms);}
+function log(text,kind=''){ if(S) S.log.push({t:T(),text,kind}); }
+
+function start(sc){
+  audio(); gen++;
+  try{speechSynthesis.cancel()}catch(e){}
+  S={sc,t0:nowMs(),log:[],
+     aed:{on:false,onAt:null,offEvents:0,plugged:false,pluggedAt:null,padType:null,pads:[],prep:{},prepAt:{},
+          state:'off',prompt:'',lastPromptAt:0,analyses:0,cycleEnd:null,shockAdvisedAt:null,readyAt:null,shocks:[],
+          motion:0,padChecks:0,firstAnalysisAt:null,promptAt:0,analysisStart:0,patchUnderPad:false,decisions:[],pending:false},
+     team:'cpr',teamNext:0,artifacts:[],lastMotion:-99,clearAt:-99,needlessClears:0,resumeAt:null,
+     seqErrors:[],padErrors:[],padTypeErrors:[],event:null,roscAt:null,teamAt:null,roscChoice:null,outcome:null,ended:false};
+  $('#startView').hidden=true; $('#debriefView').hidden=true; $('#simView').hidden=false; startChrome(false);
+  $('#simTitle').textContent=sc.title; $('#simAge').textContent=sc.age;
+  $('#promptLog').innerHTML='<span style="opacity:.6">AED prompts you hear will be listed here.</span>';
+  $('#plugBtn').classList.remove('plugged'); $('#plugBtn').textContent='Plug in';
+  ecgBuf.fill(0); ecgIdx=0; lastSampleT=0; $('#seqFlash').hidden=true; $('#decision').hidden=true; document.body.style.overflow='';
+  setStory(esc(sc.story)+' <b>Your colleague keeps doing CPR. You operate the AED.</b>');
+  log('Scenario started: '+sc.title+'. CPR in progress; AED arrives.');
+  speak(sc.title+'. '+sc.age.replace('·',',')+'. CPR is in progress. You have the AED. Press the green button to switch it on.');
+  drawBody(); renderActions(); updateAED(); sizeCanvas(); window.scrollTo({top:0});
+}
+function setStory(html,alert=false){const st=$('#story');st.innerHTML=html;st.classList.toggle('alert',alert);}
+
+/* ---------- AED prompt ---------- */
+function aedSay(text){
+  const a=S.aed; a.prompt=text; a.lastPromptAt=T();
+  log('AED: “'+text+'”','aed');
+  const pl=$('#promptLog'); if(pl.firstElementChild&&pl.firstElementChild.tagName==='SPAN') pl.innerHTML='';
+  const d=document.createElement('div'); d.innerHTML=`<span class="t">${fmt(T())}</span>${esc(text)}`; pl.appendChild(d); pl.scrollTop=pl.scrollHeight;
+  speak(text); tone(880,0.12,'square',0.05);
+  updateAED();
+}
+
+/* ---------- AED controls ---------- */
+function power(){
+  if(!S||S.ended) return; const a=S.aed;
+  if(a.on){
+    if(S.event==='rosc') return;
+    a.on=false; a.offEvents++; a.state='off'; a.pending=false; a.prompt='';
+    log('AED switched off during the resuscitation. It must stay on until the team takes over.','bad');
+    wrongSeq('Never switch the AED off during a resuscitation. Switch it back on.'); updateAED(); renderActions(); return;
+  }
+  a.on=true; if(a.onAt==null) a.onAt=T(); a.state='idle'; log('AED powered on.','good');
+  if(a.pads.length<2) aedSay("Apply pads to patient's bare chest.");
+  checkReady(); renderActions();
+}
+function plug(){
+  const a=S.aed; if(a.plugged) return; if(seqBlock(5)) return; a.plugged=true; a.pluggedAt=T(); log('Pad connector plugged in.');
+  $('#plugBtn').classList.add('plugged'); $('#plugBtn').textContent='Connected';
+  checkReady(); renderActions();
+}
+function padIssue(){ const c=S.sc.chest,p=S.aed.prep; return (c.hair&&!p.shave)||(c.wet&&!p.dry); }
+function checkReady(){
+  const a=S.aed; if(!a.on||a.state!=='idle'||a.pending) return;
+  if(a.pads.length<2) return;
+  if(!a.plugged){ aedSay('Plug in pads connector.'); return; }
+  a.pending=true; later(1500,startAnalysis);
+}
+function startAnalysis(){
+  const a=S.aed; a.pending=false; if(!a.on) return; if(a.state!=='idle'&&a.state!=='checkPads') return;
+  if(a.firstAnalysisAt==null) a.firstAnalysisAt=T();
+  if(padIssue()){
+    if(a.state!=='checkPads'){ a.padChecks++; log('Poor pad contact: skin not prepared.','bad'); }
+    a.state='checkPads'; aedSay('Check electrode pads.'); renderActions(); return;
+  }
+  a.state='analyzing'; a.promptAt=T(); a.analysisStart=T();
+  aedSay('Analyzing heart rhythm. Do not touch the patient.');
+  renderActions();
+}
+function motionDetected(){
+  const a=S.aed; a.promptAt=T(); a.analysisStart=T();
+  a.motion++; log('Nobody called “Stand clear”: the team kept compressing during analysis.','bad');
+  aedSay('Motion detected. Stop motion.');
+  S.team='off'; log('The team stops compressions after the motion prompt.');
+}
+function decide(){
+  const a=S.aed, sc=S.sc; const r=sc.rhythms[Math.min(a.analyses,sc.rhythms.length-1)];
+  a.analyses++; a.decisions.push({t:T(),r}); log('Rhythm analysed: '+RH_NAMES[r]+'.');
+  if(SHOCKABLE(r)){
+    a.state='charging'; a.shockAdvisedAt=T();
+    setStory('<b>Shock advised.</b> The AED is charging. Call “Stand clear!”, check nobody is touching the patient, then press the flashing shock button.',true);
+    aedSay('Shock advised. Charging. Stay clear of patient.');
+    tone(300,2.8,'sine',0.06,0,1800);
+    later(3000,()=>{ if(!a.on) return; a.state='ready'; a.readyAt=T(); aedSay('Press the flashing shock button now.'); renderActions(); });
+  } else {
+    aedSay('No shock advised. It is safe to touch the patient. Start CPR.');
+    startCycle(false, r);
+  }
+  renderActions();
+}
+function shock(){
+  const a=S.aed; if(a.state!=='ready') return;
+  const t=T(); const clearOk=S.clearAt>=a.shockAdvisedAt; const touching=S.team==='cpr';
+  a.shocks.push({t,delay:t-a.readyAt,clearOk,touching});
+  if(touching) log('Shock delivered while the team was touching the patient. Danger to staff.','bad');
+  if(!clearOk) log('Shock delivered without calling “Stand clear” after the shock was advised.','bad');
+  log('Shock '+a.shocks.length+' delivered ('+f1(t-a.readyAt)+' s after the button armed).', clearOk&&!touching?'good':'bad');
+  tone(90,0.35,'sawtooth',0.25); const fx=$('#flashfx'); fx.classList.remove('go'); void fx.offsetWidth; fx.classList.add('go');
+  try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}
+  S.team='off';
+  aedSay('Shock delivered. Begin CPR.');
+  startCycle(true,null);
+}
+function startCycle(postShock,r){
+  const a=S.aed; a.state='cpr'; a.cycleEnd=T()+settings.cycle;
+  // metronome begins as soon as the "Begin CPR"/"Start CPR" voice prompt finishes
+  S.metroGo=false; const myGen=gen, go=()=>{ if(gen===myGen && S && S.aed.state==='cpr') S.metroGo=true; };
+  const u=lastUtter, est=Math.max(1500,(a.prompt||'').length*75);
+  if(u){ u.addEventListener('end',go); u.addEventListener('error',go); }
+  setTimeout(go, u?est+1500:300);
+  S.resumeAt=T()+1.2;
+  if(r==='ROSC') S.roscAt=T()+10;
+  else if(a.analyses>=S.sc.rhythms.length && !S.sc.rhythms.includes('ROSC')) S.teamAt=T()+12;
+  setStory(postShock?'Shock delivered. The team goes straight back to compressions. Leave the pads on and the AED on; it will reanalyse after the CPR interval.'
+    :'No shock advised. The team restarts compressions straight away. The AED will reanalyse after the CPR interval.');
+  renderActions();
+}
+function standClear(){
+  if(!S||S.ended||S.event) return;
+  const a=S.aed; if(a.state!=='charging'&&a.state!=='ready') return;
+  if(S.clearAt>=a.shockAdvisedAt) return;
+  S.clearAt=T(); S.team='off';
+  log('You call “Stand clear!” and check nobody is touching the patient.','good');
+  toast('“Stand clear!” Everyone hands off.'); tone(440,0.1);
+  setTimeout(()=>{ try{$('#shockBtn').scrollIntoView({block:'center',behavior:'smooth'});}catch(e){} },50);
+}
+
+/* ---------- events ---------- */
+function roscEvent(){
+  S.event='rosc'; S.aed.state='paused'; S.team='off';
+  setStory('<b>The patient shows signs of life.</b>',true);
+  const box=$('#decisionOpts'); box.innerHTML='';
+  [{k:'good',t:'Leave the pads attached and the AED switched on, and hand over to the resuscitation team.'},
+   {k:'remove',t:'Remove the pads and switch the AED off: the heart has restarted.'},
+   {k:'off',t:'Leave the pads on but switch the AED off to stop the prompts.'}].forEach(o=>{
+    const b=document.createElement('button');b.className='btn decision-opt';b.textContent=o.t;b.onclick=()=>{S.roscChoice=o.k;
+      log({good:'Pads left on and AED left on after return of circulation.',remove:'Pads removed and AED switched off after return of circulation.',off:'AED switched off after return of circulation.'}[o.k],o.k==='good'?'good':'bad');
+      $('#decision').hidden=true; finish('rosc');};box.appendChild(b);});
+  $('#decision').hidden=false; document.body.style.overflow='hidden';
+  speak('The patient shows signs of life. Choose what to do with the AED.');
+  setTimeout(()=>{ try{box.firstElementChild.focus();}catch(e){} },50);
+  renderActions();
+}
+function teamArrives(){ log('The resuscitation team arrives and takes over.','good'); finish('team'); }
+
+/* ---------- sequence errors ---------- */
+let seqTimer=null;
+function wrongSeq(msg){ S.seqErrors.push({t:T(),msg}); log('Wrong sequence: '+msg,'bad'); return flashMsg('⚠ Wrong sequence',msg); }
+function wrongPad(msg){ S.padErrors.push({t:T(),msg}); log('Wrong pad position: '+msg,'bad'); return flashMsg('⚠ Wrong pad position',msg); }
+function flashMsg(title,msg){
+  $('#seqTitle').textContent=title; $('#seqMsg').textContent=msg; const f=$('#seqFlash'); f.hidden=true; void f.offsetWidth; f.hidden=false;
+  const c=f.querySelector('.seq-card'); c.style.animation='none'; void c.offsetWidth; c.style.animation='';
+  tone(160,0.35,'square',0.12); tone(120,0.35,'square',0.12,0.4);
+  clearTimeout(seqTimer); seqTimer=setTimeout(()=>{f.hidden=true;},3000);
+  return true;
+}
+function missingPrep(){ return requiredPrep(S.sc).filter(k=>!S.aed.prep[k]); }
+function seqBlock(step){ // returns true if the action is out of order
+  const a=S.aed;
+  if(!a.on) return wrongSeq('Switch on the AED first. It guides every step.');
+  if(step>1 && !a.prep.expose) return wrongSeq('Expose the chest first.');
+  if(step>2){ const m=missingPrep(); if(m.length) return wrongSeq('Prepare the skin first: '+m.map(k=>PREP[k].label.toLowerCase()).join('; ')+'.'); }
+  if(step>3 && !a.padType) return wrongSeq('Choose the pads first.');
+  if(step>4 && a.pads.length<2) return wrongSeq('Place both pads before connecting them to the AED.');
+  return false;
+}
+/* ---------- prep & pads ---------- */
+function doPrep(k){
+  const a=S.aed,c=S.sc.chest; if(a.prep[k]) return;
+  if(seqBlock(k==='expose'?1:2)) return;
+  a.prep[k]=true; a.prepAt[k]=T();
+  const needed={expose:true,bra:!!c.bra,dry:!!c.wet,shave:!!c.hair,patch:!!c.patch}[k];
+  log({expose:'Chest exposed.',bra:'Bra moved aside.',dry:'Chest dried.',shave:'Pad sites shaved.',patch:'Medication patch removed and skin wiped.'}[k]+(needed?'':' (not needed for this patient)'), needed?'good':'');
+  if(k==='expose'){ const f=[]; if(c.hair)f.push('dense chest hair'); if(c.wet)f.push('a wet chest'); if(c.patch)f.push('a medication patch on the right upper chest'); if(c.bra)f.push('a bra'); if(c.device)f.push('a pacemaker bulge under the right collarbone');
+    setStory('Chest exposed. You see '+(f.length?f.join(', '):'nothing that will stop the pads sticking')+'.'); }
+  if(a.state==='checkPads' && !padIssue()){ a.state='idle'; log('Pads pressed back on firmly after skin preparation.'); checkReady(); }
+  drawBody(); renderActions();
+}
+function padPlacementError(z){
+  const a=S.aed, dev=!!S.sc.chest.device, first=a.pads[0];
+  const pairs=[['R_INFRA','L_APEX'],['ANT','POST']].filter(p=>!(dev&&p.includes('R_INFRA')));
+  if(z==='ABD') return 'Pads go on the chest, not the abdomen. The current must pass through the heart.';
+  if(z==='LOWBACK') return 'Too low. The back pad goes between the shoulder blades, left of the spine.';
+  if(z==='L_INFRA') return 'Left upper chest is wrong. The upper pad goes on the RIGHT, below the collarbone.';
+  if(z==='R_INFRA'&&dev) return 'Never place a pad over the pacemaker. Keep at least 8 cm away, or use front-and-back placement.';
+  if(first && !pairs.some(p=>p.includes(first)&&p.includes(z))) return dev?'This does not pair with pad 1. With a pacemaker, use front left of sternum + back.':'This does not pair with pad 1. Use right upper chest + left side, or front left of sternum + back.';
+  return null;
+}
+function choosePads(type){
+  const a=S.aed; if(a.pads.length){toast('Remove the placed pads before switching pad type.');return;}
+  if(seqBlock(3)) return;
+  if(S.sc.group==='adult' && type==='child'){ S.padTypeErrors.push(type); log('Wrong pads: paediatric pads chosen for an adult.','bad'); flashMsg('⚠ Wrong pads','Paediatric pads are for children under 8. On an adult they deliver too little energy to defibrillate. Use adult pads.'); return; }
+  if(S.sc.group==='child' && type==='adult'){ S.padTypeErrors.push(type); log('Wrong pads: adult pads chosen for a 7-year-old while paediatric pads are available.','bad'); flashMsg('⚠ Wrong pads','This child is under 8 and paediatric pads are in the kit. Use them. Adult pads are only for when no paediatric pads or attenuator are available.'); return; }
+  a.padType=type; log((type==='adult'?'Adult':'Paediatric')+' pads chosen.'); renderActions(); drawBody();
+}
+function placePad(z){
+  const a=S.aed; if(!S||S.ended) return;
+  if(a.pads.length>=2||a.pads.includes(z)) return;
+  if(seqBlock(4)) return;
+  const bad=padPlacementError(z); if(bad){ wrongPad(bad); return; }
+  a.pads.push(z);
+  if(z==='R_INFRA' && S.sc.chest.patch && !a.prep.patch) a.patchUnderPad=true;
+  log('Pad '+a.pads.length+' placed: '+ZONES[z].label+'.');
+  drawBody(); renderActions();
+  if(a.pads.length===2) checkReady();
+}
+function resetPads(){ const a=S.aed; if(['analyzing','charging','ready','cpr'].includes(a.state)||a.pending) return; a.pads=[]; a.padType=null; if(a.state==='checkPads')a.state='idle'; log('Pads removed to re-apply.'); drawBody(); renderActions(); }
+
+/* ---------- action panel ---------- */
+function renderActions(){
+  if(!S) return; const a=S.aed, el=$('#actions');
+  let h='<div class="group"><div class="eyebrow">Prepare the chest</div><div class="row">';
+  Object.keys(PREP).forEach(k=>{ h+=`<button class="btn ${a.prep[k]?'done':''}" data-prep="${k}" ${a.prep[k]?'disabled':''}>${PREP[k].label}</button>`; });
+  h+='</div></div><div class="group"><div class="eyebrow">Pads from the AED kit</div><div class="row">';
+  h+=`<button class="btn ${a.padType==='adult'?'sel':''}" data-pads="adult">Adult pads</button><button class="btn ${a.padType==='child'?'sel':''}" data-pads="child">Paediatric pads (attenuated)</button>`;
+  h+=`<button class="btn" data-reset="1" ${a.pads.length?'':'disabled'}>Remove pads</button>`;
+  h+='</div><div class="muted" style="font-size:.85rem">'+(a.padType?(a.pads.length<2?'Tap the diagram to place pad '+(a.pads.length+1)+' of 2. Front and back views are both available.':'Both pads placed.'):'Choose a pad type, then tap where each pad goes.')+'</div></div>';
+  el.innerHTML=h;
+  el.querySelectorAll('[data-prep]').forEach(b=>b.onclick=()=>doPrep(b.dataset.prep));
+  el.querySelectorAll('[data-pads]').forEach(b=>b.onclick=()=>choosePads(b.dataset.pads));
+  el.querySelectorAll('[data-reset]').forEach(b=>b.onclick=resetPads);
+  if(S) S._stepKey=null;
+  $('#bodyWrap').classList.toggle('placing',!!(a.padType&&a.pads.length<2&&a.prep.expose));
+  updateAED();
+}
+
+/* ---------- body drawing ---------- */
+/* Body drawn to scale: K px per cm. Adult and child use the same scale so sizes compare truthfully.
+   Measurements are approximate anthropometric averages; pad sizes are typical of commercial pads. */
+const K=3;
+const METRO_BPM=100; // AHA 2025 / ERC 2025: 100–120 compressions per minute
+const BODY={
+  adult:{headW:15,headH:23,neck:8,shW:44,axW:34,waistW:30,hipW:35,T:55,armW:9},
+  child:{headW:14,headH:20,neck:5,shW:30,axW:24,waistW:21,hipW:24,T:40,armW:6}
+};
+const PAD_CM={adult:[11,14],child:[7.5,9.5]};
+// pad centres as fractions: x of shoulder width from midline (patient's left = +), y of torso length below the collarbones
+const ZPOS={R_INFRA:[-.2,.15],L_INFRA:[.2,.15],ANT:[.11,.22],L_APEX:[.37,.37],ABD:[0,.72],POST:[-.11,.25],LOWBACK:[0,.78]};
+function bodyGeom(group){
+  const b=BODY[group], cx=110, H=215, top=(H-14-(3+b.T)*K)/2;
+  const g={b,cx,top};
+  g.chin=top+4;
+  g.shY=g.chin+3*K; g.clavY=g.shY+0.04*b.T*K;
+  g.axY=g.shY+0.22*b.T*K; g.waistY=g.shY+0.72*b.T*K; g.hipY=g.shY+b.T*K;
+  g.hs=b.shW*K/2; g.ha=b.axW*K/2; g.hw=b.waistW*K/2; g.hh=b.hipW*K/2;
+  return g;
+}
+function zonePt(g,k){ const [fx,fy]=ZPOS[k]; 
+  // fx is the offset as the viewer sees it: front view shows the patient's left on the right, back view on the left
+  return {x:g.cx+fx*g.b.shW*K, y:g.clavY+fy*g.b.T*K}; }
+function torsoPath(g){
+  const {cx,hs,ha,hw,hh,shY,axY,waistY,hipY,b}=g, nw=b.headW*K*0.36;
+  return `M${cx-nw} ${g.chin-4} L${cx-nw} ${shY-6} Q${cx-hs*0.55} ${shY-4} ${cx-hs} ${shY+8}
+    Q${cx-hs-4} ${shY+20} ${cx-ha} ${axY} L${cx-hw} ${waistY} Q${cx-hh-2} ${(waistY+hipY)/2} ${cx-hh} ${hipY}
+    L${cx+hh} ${hipY} Q${cx+hh+2} ${(waistY+hipY)/2} ${cx+hw} ${waistY} L${cx+ha} ${axY}
+    Q${cx+hs+4} ${shY+20} ${cx+hs} ${shY+8} Q${cx+hs*0.55} ${shY-4} ${cx+nw} ${shY-6} L${cx+nw} ${g.chin-4} Z`;
+}
+function armPaths(g){
+  const {cx,hs,ha,shY,axY,b}=g, aw=b.armW*K, len=b.T*0.92*K, yb=shY+len;
+  const arm=s=>{ const top=cx+s*(hs-aw*0.35), outTop=cx+s*(hs+aw*0.55), outBot=cx+s*(hs+aw*1.25), inBot=cx+s*(hs+aw*0.35), inAx=cx+s*(ha+1);
+    return `M${top} ${shY+2} Q${cx+s*(hs+aw*0.6)} ${shY} ${outTop} ${shY+aw*1.2} L${outBot} ${yb} Q${(outBot+inBot)/2} ${yb+aw*0.6} ${inBot} ${yb} L${inAx} ${axY+4} Z`; };
+  return arm(-1)+' '+arm(1);
+}
+function tshirt(g,arms,torso,id,front){
+  const {cx,b}=g, T=b.T*K, nw=b.headW*K*0.36, sleeveEnd=g.shY+0.33*T, hem=g.hipY-0.12*T;
+  let o=`<defs><clipPath id="slv-${id}"><rect x="0" y="0" width="220" height="${sleeveEnd}"/></clipPath><clipPath id="hem-${id}"><rect x="0" y="0" width="220" height="${hem}"/></clipPath></defs>`;
+  o+=`<g clip-path="url(#slv-${id})"><path d="${arms}" fill="var(--shirt)" stroke="var(--shirt-line)" stroke-width="1.5"/></g>`;
+  o+=`<defs><clipPath id="band-${id}"><rect x="0" y="${sleeveEnd-4}" width="220" height="4"/></clipPath></defs><g clip-path="url(#band-${id})"><path d="${arms}" fill="var(--shirt-line)"/></g>`;
+  o+=`<g clip-path="url(#hem-${id})"><path d="${torso}" fill="var(--shirt)" stroke="var(--shirt-line)" stroke-width="1.5"/></g>`;
+  o+=`<path d="M${cx-g.hh-2} ${hem} L${cx+g.hh+2} ${hem}" stroke="var(--shirt-line)" stroke-width="3"/>`;
+  o+=front?`<path d="M${cx-nw-1} ${g.chin} Q${cx} ${g.shY+12} ${cx+nw+1} ${g.chin}" fill="var(--skin)" stroke="var(--shirt-line)" stroke-width="3.5"/>`
+          :`<path d="M${cx-nw-1} ${g.chin+2} Q${cx} ${g.chin+8} ${cx+nw+1} ${g.chin+2}" fill="none" stroke="var(--shirt-line)" stroke-width="3.5"/>`;
+  o+=`<path d="M${cx-g.hs+4} ${g.shY+6} Q${cx-g.hs+8} ${g.axY-6} ${cx-g.ha+1} ${g.axY} M${cx+g.hs-4} ${g.shY+6} Q${cx+g.hs-8} ${g.axY-6} ${cx+g.ha-1} ${g.axY}" fill="none" stroke="var(--shirt-line)" stroke-width="1.2" stroke-dasharray="2 2" opacity=".8"/>`;
+  return o;
+}
+function drawBody(){
+  const a=S.aed,c=S.sc.chest,group=S.sc.group,exposed=!!a.prep.expose,female=!!(c.bra||S.sc.id==='pea');
+  const g=bodyGeom(group), {cx,b}=g;
+  const skin='fill="var(--skin)" stroke="var(--skin-line)" stroke-width="1.3"';
+  const head='';
+  const torso=torsoPath(g), arms=armPaths(g);
+  let f=`<path d="${arms}" ${skin}/>`+head+`<path d="${torso}" ${skin}/>`;
+  // landmarks: clavicles, sternum, costal margin, nipples, umbilicus
+  const T=b.T*K, sw=b.shW*K;
+  f+=`<path d="M${cx-4} ${g.clavY} Q${cx-sw*0.22} ${g.clavY-5} ${cx-g.hs+6} ${g.clavY-2} M${cx+4} ${g.clavY} Q${cx+sw*0.22} ${g.clavY-5} ${cx+g.hs-6} ${g.clavY-2}" fill="none" stroke="var(--skin-line)" stroke-width="1.2" opacity=".8"/>`;
+  f+=`<path d="M${cx} ${g.clavY+2} L${cx} ${g.clavY+0.33*T}" stroke="var(--skin-line)" stroke-width="1" opacity=".55"/>`;
+  f+=`<path d="M${cx} ${g.clavY+0.34*T} Q${cx-sw*0.18} ${g.clavY+0.42*T} ${cx-sw*0.3} ${g.clavY+0.5*T} M${cx} ${g.clavY+0.34*T} Q${cx+sw*0.18} ${g.clavY+0.42*T} ${cx+sw*0.3} ${g.clavY+0.5*T}" fill="none" stroke="var(--skin-line)" opacity=".45"/>`;
+  if(!female) f+=`<circle cx="${cx-sw*0.22}" cy="${g.clavY+0.3*T}" r="${1.2*K*(group==='child'?0.7:1)}" fill="var(--skin-line)"/><circle cx="${cx+sw*0.22}" cy="${g.clavY+0.3*T}" r="${1.2*K*(group==='child'?0.7:1)}" fill="var(--skin-line)"/>`;
+  f+=`<circle cx="${cx}" cy="${g.clavY+0.66*T}" r="2" fill="var(--skin-line)" opacity=".7"/>`;
+  if(c.hair && !a.prep.shave){ let hh=''; for(let i=0;i<90;i++){const x=cx-sw*0.3+((i*37)%100)/100*sw*0.6,y=g.clavY+0.06*T+((i*53)%100)/100*0.5*T;hh+=`M${x.toFixed(1)} ${y.toFixed(1)} l2.5 3.5`;} f+=`<path d="${hh}" stroke="#4a3626" stroke-width="1.1" opacity=".8"/>`; }
+  if(c.wet && !a.prep.dry){ for(let i=0;i<16;i++){const x=cx-sw*0.32+((i*41)%100)/100*sw*0.64,y=g.clavY+0.05*T+((i*29)%100)/100*0.6*T;f+=`<path d="M${x.toFixed(1)} ${y.toFixed(1)} q2.5 4 0 6 q-2.5 -2 0 -6" fill="#5fb3e6" opacity=".85"/>`;} }
+  const rp=zonePt(g,'R_INFRA');
+  if(c.device){ f+=`<rect x="${rp.x-2.5*K}" y="${rp.y-2.5*K-6}" width="${5*K}" height="${5*K}" rx="5" fill="var(--skin)" stroke="var(--skin-line)" stroke-width="1.6"/><text x="${rp.x}" y="${rp.y-2.5*K-10}" font-size="7" text-anchor="middle" fill="var(--ink)">pacemaker</text>`; }
+  if(c.patch && !a.prep.patch){ f+=`<rect x="${rp.x-3*K}" y="${rp.y-3*K}" width="${6*K}" height="${6*K}" rx="2" fill="#f4f1ea" stroke="#999"/><text x="${rp.x}" y="${rp.y+2}" font-size="6" text-anchor="middle" fill="#333">GTN</text>`; }
+  if(c.bra && !a.prep.bra){ const y=g.clavY+0.3*T, L=cx-g.ha+2, Rr=cx+g.ha-2;
+    f+=`<path d="M${L} ${y-6} Q${cx-sw*0.22} ${y-24} ${cx-3} ${y-4} Q${cx+sw*0.22} ${y-24} ${Rr} ${y-6} L${Rr} ${y+8} Q${cx+sw*0.2} ${y+12} ${cx} ${y+8} Q${cx-sw*0.2} ${y+12} ${L} ${y+8} Z" fill="#c9a2b8" stroke="#8e6a7f"/>`; }
+  if(!exposed) f+=tshirt(g,arms,torso,'f',true);
+  let bk=`<path d="${arms}" ${skin}/>`+head+`<path d="${torso}" ${skin}/>`;
+  bk+=`<path d="M${cx} ${g.chin} L${cx} ${g.hipY-4}" stroke="var(--skin-line)" stroke-dasharray="3 3" opacity=".7"/>`;
+  [-1,1].forEach(s=>{ bk+=`<path d="M${cx+s*sw*0.1} ${g.clavY+0.02*T} L${cx+s*sw*0.36} ${g.clavY+0.02*T} L${cx+s*sw*0.16} ${g.clavY+0.33*T} Z" fill="none" stroke="var(--skin-line)" opacity=".6" stroke-linejoin="round"/>`; });
+  bk+=`<text x="${cx}" y="${g.hipY+12}" font-size="7" text-anchor="middle" fill="var(--muted)">patient's left ← | → patient's right</text>`;
+  if(!exposed) bk+=tshirt(g,arms,torso,'b',false);
+  const [pw,ph]=PAD_CM[a.padType||(group==='child'?'child':'adult')].map(v=>v*K);
+  const zr=Math.max(pw,ph)/2;
+  Object.keys(ZONES).forEach(k=>{
+    const p=zonePt(g,k), idx=a.pads.indexOf(k), z=ZONES[k];
+    let el=`<g class="zone" data-zone="${k}" tabindex="0" role="button" aria-label="Place pad: ${z.label}"><circle cx="${p.x}" cy="${p.y}" r="${zr}"/>`;
+    if(idx>=0) el+=`<rect x="${p.x-pw/2}" y="${p.y-ph/2}" width="${pw}" height="${ph}" rx="${Math.min(6,pw/5)}" fill="#f7f7f2" stroke="#1d5f4a" stroke-width="2" opacity=".96"/><path d="M${p.x-pw/4} ${p.y} l${pw/8} -${ph/6} l0 ${ph/3} l${pw/8} -${ph/6}" fill="none" stroke="#c0392b" stroke-width="1.4"/><text x="${p.x}" y="${p.y+ph/2-4}" font-size="8" font-weight="700" text-anchor="middle" fill="#1d5f4a">${idx+1}</text>`;
+    el+='</g>';
+    if(z.view==='front') f+=el; else bk+=el;
+  });
+  f+=`<path d="M6 209 h${10*K}" stroke="var(--muted)" stroke-width="2"/><text x="${6+5*K}" y="205" font-size="7" text-anchor="middle" fill="var(--muted)">10 cm</text>`;
+  $('#front').innerHTML=f; $('#back').innerHTML=bk;
+  document.querySelectorAll('.zone').forEach(z=>{ z.onclick=()=>placePad(z.dataset.zone); z.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();placePad(z.dataset.zone);}}; });
+}
+
+/* ---------- AED display ---------- */
+function updateAED(){
+  if(!S) return; const a=S.aed;
+  $('#lcd').classList.toggle('off',!a.on);
+  $('#powerBtn').classList.toggle('on',a.on);
+  $('#lcdPrompt').textContent=a.on?a.prompt:'';
+  const st={off:'OFF',idle:'READY',checkPads:'CHECK PADS',analyzing:'ANALYZING',charging:'CHARGING',ready:'SHOCK READY',cpr:'CPR',paused:'MONITOR'}[a.state]||'';
+  $('#lcdState').textContent=a.on?st+'  ·  SHOCKS '+a.shocks.length:'OFF';
+  const sb=$('#shockBtn'); sb.disabled=a.state!=='ready'; sb.classList.toggle('armed',a.state==='ready');
+  $('#plugBtn').disabled=a.plugged;
+}
+
+/* ---------- ECG ---------- */
+const ECG_HZ=100, ecgBuf=new Float32Array(ECG_HZ*4); let ecgIdx=0,lastSampleT=0;
+function g(t,c,w,a){return a*Math.exp(-Math.pow((t-c)/w,2));}
+function beat(p,wide){ const k=wide?1.8:1; return g(p,.08,.03,.12)+g(p,.16,.008*k,-.12)+g(p,.18,.012*k,1)+g(p,.205,.01*k,-.25)+g(p,.42,.05,.28); }
+function rhythmVal(r,t){
+  switch(r){
+    case 'VF': { const amp=.55+.3*Math.sin(2*Math.PI*.25*t); return amp*(.6*Math.sin(2*Math.PI*5.2*t)+.35*Math.sin(2*Math.PI*3.6*t+1.3)+.25*Math.sin(2*Math.PI*7.1*t+2.1)); }
+    case 'pVT': { const P=60/180, p=(t%P)/P; return .85*Math.sin(2*Math.PI*p)+.22*Math.sin(4*Math.PI*p+.6); }
+    case 'ASYS': return .03*Math.sin(2*Math.PI*.3*t)+.015*Math.sin(2*Math.PI*1.7*t);
+    case 'PEA': return beat(t%(60/48),true)*.8;
+    case 'ROSC': return beat(t%(60/88),false);
+  }
+  return 0;
+}
+function currentRhythm(){ const sc=S.sc,a=S.aed; const i=(a.state==='charging'||a.state==='ready')?a.analyses-1:a.analyses; return sc.rhythms[Math.max(0,Math.min(i,sc.rhythms.length-1))]; }
+function sampleAt(t){
+  const a=S.aed; if(!a.on||a.pads.length<2||!a.plugged) return 0;
+  let v=rhythmVal(currentRhythm(),t)+(Math.random()-.5)*.03;
+  for(let i=S.artifacts.length-1;i>=0;i--){ const d=t-S.artifacts[i]; if(d>0.6) break; if(d>=0) v+=g(d,.06,.06,1.3)+g(d,.22,.09,-.35); }
+  return v;
+}
+const cv=$('#ecg'), ctx=cv.getContext('2d');
+function sizeCanvas(){ const dpr=window.devicePixelRatio||1; const w=cv.clientWidth||300; cv.width=Math.round(w*dpr); cv.height=Math.round(84*dpr); }
+window.addEventListener('resize',sizeCanvas);
+function drawECG(){
+  const W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
+  const cs=getComputedStyle(document.documentElement); const ink=cs.getPropertyValue('--lcd-ink').trim()||'#7df0b8', dim=cs.getPropertyValue('--lcd-dim').trim()||'#2e5c49';
+  ctx.strokeStyle=dim; ctx.lineWidth=1; ctx.globalAlpha=.5;
+  for(let x=0;x<W;x+=W/20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  ctx.globalAlpha=1;
+  if(!S||!S.aed.on) return;
+  const a=S.aed;
+  if(a.pads.length<2||!a.plugged){ ctx.fillStyle=ink; ctx.font=`${Math.round(H*.16)}px "IBM Plex Mono", monospace`; ctx.fillText('PADS NOT CONNECTED',10,H*.3); }
+  ctx.strokeStyle=ink; ctx.lineWidth=Math.max(1.5,W/300); ctx.beginPath();
+  const n=ecgBuf.length, mid=H*.55, amp=H*.32; let started=false;
+  for(let i=0;i<n;i++){ const gap=(i-ecgIdx+n)%n; if(gap<8){started=false;continue;}
+    const x=i/n*W, y=mid-ecgBuf[i]*amp; if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y); }
+  ctx.stroke();
+}
+
+/* ---------- main loop ---------- */
+function frame(){
+  requestAnimationFrame(frame);
+  if(!S||S.ended) return;
+  const t=T(), a=S.aed;
+  // team resumes CPR after AED says to, or after a needless pause
+  if(S.resumeAt!=null && t>=S.resumeAt && !S.event){ S.resumeAt=null; if(S.team!=='cpr'){ S.team='cpr'; S.teamNext=t; log('The team resumes compressions.'); } }
+  if(S.team==='cpr'){ while(S.teamNext<=t){ S.artifacts.push(S.teamNext); S.lastMotion=S.teamNext; S.teamNext+=60/METRO_BPM; } }
+  if(S.artifacts.length>60) S.artifacts.splice(0,S.artifacts.length-60);
+  if(a.state==='analyzing'){
+    if(S.team==='cpr'){ if(t>a.promptAt+1){ S.team='off'; a.analysisStart=t; log('The team stops compressions and stands clear for analysis.'); } else a.analysisStart=t; }
+    if(t-a.analysisStart>=6) decide();
+  }
+  if(a.state==='cpr' && t>=a.cycleEnd && !S.event){ aedSay('Stop CPR. Do not touch the patient.'); a.state='idle'; a.pending=true; later(1200,startAnalysis); }
+  if(a.on && a.state==='idle' && !a.pending && t-a.lastPromptAt>12){ if(a.pads.length<2) aedSay("Apply pads to patient's bare chest."); else if(!a.plugged) aedSay('Plug in pads connector.'); }
+  if(a.state==='ready' && t-a.lastPromptAt>8) aedSay('Press the flashing shock button now.');
+  // CPR metronome: starts with "Begin CPR"/"Start CPR" and runs until the AED stops CPR
+  if(a.state==='cpr' && S.metroGo && !S.event && actx){ const now=actx.currentTime;
+    if(S.metroNext==null || S.metroNext<now) S.metroNext=now+0.05;
+    while(S.metroNext-now<0.15){ tone(1600,0.035,'square',0.07,S.metroNext-now); S.metroNext+=60/METRO_BPM; }
+    const ph=((t*METRO_BPM/60)%1); $('#lcdTimer').dataset.beat=ph<0.15?'1':'';
+  } else S.metroNext=null;
+  if(a.state==='ready'){ const b=Math.floor(t*2); if(b!==S._bp){S._bp=b; tone(b%2?1200:900,0.12,'square',0.05);} }
+  if(S.roscAt!=null && t>=S.roscAt && !S.event){ S.roscAt=null; roscEvent(); }
+  if(S.teamAt!=null && t>=S.teamAt && !S.event){ S.teamAt=null; teamArrives(); return; }
+  let ts=Math.max(lastSampleT,t-0.5); while(ts<t){ ecgBuf[ecgIdx]=sampleAt(ts); ecgIdx=(ecgIdx+1)%ecgBuf.length; ts+=1/ECG_HZ; } lastSampleT=ts;
+  drawECG();
+  $('#clock').textContent=fmt(t); $('#shockCount').textContent=a.shocks.length; $('#anCount').textContent=a.analyses;
+  const showClear=(a.state==='charging'||a.state==='ready')&&S.clearAt<a.shockAdvisedAt&&!S.event;
+  const cp=$('#clearPop'); if(cp.hidden===showClear) cp.hidden=!showClear;
+  $('#lcdTimer').textContent=a.on&&a.state==='cpr'?'♥ '+METRO_BPM+'/min  ·  CPR '+fmt(a.cycleEnd-t):'';
+  const cur=curStep(); const key=cur+'|'+S.aed.analyses+'|'+(settings.guided?1:0)+'|'+hint();
+  if(key!==S._stepKey){ S._stepKey=key; renderSteps(cur); }
+}
+const STEPS=['Switch on AED','Expose chest','Prepare skin','Choose pads','Place pads','Connect pads','Rhythm analysis','Stand clear & shock','CPR, then reanalyse'];
+function stepDone(i){ const a=S.aed,sc=S.sc; return [a.on||a.onAt!=null&&a.analyses>0, !!a.prep.expose, requiredPrep(sc).every(k=>a.prep[k]), !!a.padType, a.pads.length===2, a.plugged][i]; }
+function curStep(){ const a=S.aed;
+  if(S.event) return 8;
+  if(!a.on) return 0;
+  if(a.state==='analyzing'||(a.state==='idle'&&a.pending&&a.analyses>0)) return 6;
+  if(a.state==='charging'||a.state==='ready') return 7;
+  if(a.state==='cpr') return 8;
+  for(let i=1;i<6;i++) if(!stepDone(i)) return i;
+  if(a.state==='checkPads') return 2;
+  return 6; }
+function targetsFor(i){ const a=S.aed;
+  switch(i){
+    case 0: return ['#powerBtn'];
+    case 1: return ['[data-prep="expose"]'];
+    case 2: return requiredPrep(S.sc).filter(k=>!a.prep[k]).map(k=>`[data-prep="${k}"]`);
+    case 3: return ['[data-pads="adult"]','[data-pads="child"]'];
+    case 4: return ['#bodyWrap'];
+    case 5: return ['#plugBtn'];
+    case 7: return a.state==='ready'&&S.clearAt>=a.shockAdvisedAt?['#shockBtn']:['#clearBtn'];
+  } return []; }
+function renderSteps(cur){
+  const loop=S.aed.analyses>0;
+  $('#stepper').innerHTML=STEPS.map((t,i)=>{ let cls='';
+    if(i===cur) cls='cur'; else if(i<6 ? (stepDone(i)&&i!==cur) : (loop && i<cur)) cls='done';
+    return `<li class="${cls}" ${i===cur?'aria-current="step"':''}><span class="n">${cls==='done'?'✓':i+1}</span>${t}</li>`; }).join('');
+  document.querySelectorAll('.target').forEach(el=>el.classList.remove('target'));
+  const hb=$('#hint');
+  if(settings.guided){ hb.hidden=false;
+    hb.innerHTML=`<span class="num">${cur+1}</span><span><span class="ttl">Step ${cur+1}: ${esc(STEPS[cur])}</span>${esc(hint())}</span>`;
+    targetsFor(cur).forEach(sel=>document.querySelectorAll(sel).forEach(el=>el.classList.add('target')));
+  } else hb.hidden=true;
+}
+function hint(){
+  const a=S.aed,sc=S.sc;
+  if(S.event) return 'Decide what to do with the AED now that the patient shows signs of life.';
+  if(!a.on) return a.offEvents?'Switch the AED back on. Never switch it off during a resuscitation.':'Switch on the AED first. It will talk you through every step.';
+  if(a.state==='analyzing') return 'The AED is analysing the rhythm. Hands off; the team has stopped compressions.';
+  if(a.state==='charging') return 'Keep everyone clear while it charges. Call “Stand clear!” and look along the patient.';
+  if(a.state==='ready') return S.clearAt>=a.shockAdvisedAt?'Press the flashing shock button now.':'Call “Stand clear!”, look, then press the shock button.';
+  if(a.state==='cpr') return 'The team is doing CPR. Leave the pads on and the AED on until the next analysis.';
+  if(a.state==='idle'&&a.pending) return 'The AED is about to analyse the rhythm. Hands off.';
+  if(!a.prep.expose) return 'Expose the chest and look for anything that will stop the pads working.';
+  const miss=requiredPrep(sc).filter(k=>!a.prep[k]);
+  if(miss.length) return 'Prepare the chest: '+miss.map(k=>PREP[k].label.toLowerCase()).join('; ')+'.';
+  if(!a.padType) return sc.group==='child'?'Choose pads: this child is under 8 years old.':'Choose the pads for an adult.';
+  if(a.pads.length<2) return 'Place pad '+(a.pads.length+1)+': tap its position on the front or back view.'+(sc.chest.device?' Avoid the pacemaker.':'');
+  if(!a.plugged) return 'Plug the pad connector into the AED.';
+  if(a.state==='checkPads') return 'The pads are not making good contact. Fix the skin preparation.';
+  return 'Follow the AED prompts.';
+}
+
+/* ---------- input ---------- */
+$('#clearBtn').onclick=standClear;
+$('#powerBtn').onclick=power; $('#plugBtn').onclick=plug; $('#shockBtn').onclick=shock;
+$('#endBtn').onclick=()=>{ if(S&&!S.ended){ log('Scenario ended early.'); finish('early'); } };
+$('#startAedBtn').onclick=()=>start(selected);
+$('#homeBtn').onclick=goHome;
+function goHome(){ $('#decision').hidden=true; document.body.style.overflow=''; if(S&&!S.ended){ S.ended=true; } gen++; try{speechSynthesis.cancel()}catch(e){}
+  $('#simView').hidden=true; $('#debriefView').hidden=true; $('#startView').hidden=false; startChrome(true); window.scrollTo({top:0}); }
+function startChrome(show){ $('#startSettings').hidden=!show; $('#disclaimer').hidden=!show; showExtras(show); }
+function showExtras(show){ document.querySelectorAll('.extra').forEach(el=>el.hidden=!show); }
+$('#retryBtn').onclick=()=>start(S.sc); $('#menuBtn').onclick=goHome;
+document.addEventListener('keydown',e=>{
+  if($('#simView').hidden||!S||S.ended) return;
+  const tag=(e.target.tagName||'').toLowerCase(); if(tag==='select'||tag==='input') return;
+  if(e.key==='c'||e.key==='C') standClear();
+});
+
+/* ---------- debrief ---------- */
+function finish(reason){
+  S.ended=true; S.outcome=reason; gen++;
+  try{speechSynthesis.cancel()}catch(e){}
+  $('#decision').hidden=true; document.body.style.overflow='';
+  renderDebrief(); showExtras(true); $('#simView').hidden=true; $('#debriefView').hidden=false; window.scrollTo({top:0});
+}
+function renderDebrief(){
+  const sc=S.sc,a=S.aed,rows=[];
+  const add=(label,status,detail,std)=>rows.push({label,status,detail,std});
+  const se=S.seqErrors.length;
+  add('Steps in the correct order', se===0?'pass':(se<=2?'part':'fail'), se===0?'Every action was done in the right order.':se+' out-of-order action'+(se>1?'s':'')+': '+S.seqErrors.map(e=>e.msg).join(' '),'Power on, prepare the chest, choose and apply pads, connect, then follow the prompts.<sup class="c">1,7</sup>');
+  add('AED switched on first', a.onAt==null?'fail':(a.onAt<=10?'pass':(a.onAt<=20?'part':'fail')), a.onAt==null?'AED never switched on.':'Switched on '+f1(a.onAt)+' s after arrival.','Attach the AED as soon as it is available.<sup class="c">1</sup> Simulator target: within 10 s.');
+  const req=requiredPrep(sc), fa=a.firstAnalysisAt;
+  const prepOk=req.every(k=>a.prepAt[k]!=null && (fa==null||a.prepAt[k]<=fa)) && !a.patchUnderPad;
+  const missing=req.filter(k=>a.prepAt[k]==null).map(k=>PREP[k].label.toLowerCase());
+  add('Chest prepared correctly', prepOk?'pass':(missing.length===0?'part':'fail'),
+    prepOk?'All required steps done before analysis.':((missing.length?'Missing: '+missing.join(', ')+'.':'Steps done late.')+(a.padChecks?' The AED reported poor pad contact.':'')+(a.patchUnderPad?' A pad was placed over the medication patch.':'')),
+    'Bare, dry chest; shave dense hair; remove patches at pad sites.<sup class="c">7</sup>'+(sc.chest.bra?' Moving a bra aside is reasonable.<sup class="c">1</sup>':''));
+  let ptS='fail',ptD='No pads chosen.';
+  if(a.padType){ if(sc.group==='adult'){ ptS=a.padType==='adult'?'pass':'fail'; ptD=a.padType==='adult'?'Adult pads used.':'Paediatric pads on an adult deliver an attenuated dose that may not defibrillate.'; }
+    else { ptS=a.padType==='child'?'pass':'part'; ptD=a.padType==='child'?'Paediatric (attenuated) pads used.':'Adult pads used although paediatric pads were in the kit. Acceptable only if no attenuator or paediatric pads are available.'; } }
+  if(S.padTypeErrors.length){ ptD+=' '+S.padTypeErrors.length+' wrong pad choice'+(S.padTypeErrors.length>1?'s':'')+' before choosing correctly.'; if(ptS==='pass') ptS='part'; }
+  add('Correct pad type', ptS, ptD, sc.group==='child'?'Under 8 years: paediatric pads or attenuator if available.<sup class="c">2</sup>':'Adult pads for adults.<sup class="c">1</sup>');
+  const set=new Set(a.pads), AL=set.has('R_INFRA')&&set.has('L_APEX'), AP=set.has('ANT')&&set.has('POST');
+  let pS='fail',pD=a.pads.length?'Pads at: '+a.pads.map(z=>ZONES[z].label).join(' and ')+'.':'Pads not placed.';
+  if(sc.chest.device){ if(AP){pS='pass';pD+=' Anteroposterior placement avoids the pacemaker.';} else if(AL){pD+=' The right pad sat directly over the pacemaker.';} }
+  else if(AL||AP){ pS='pass'; pD+=AL?' Anterolateral position.':' Anteroposterior position.'; }
+  const pe=S.padErrors.length; if(pe){ pD+=' '+pe+' wrong placement attempt'+(pe>1?'s':'')+' before getting it right.'; if(pS==='pass') pS='part'; }
+  add('Correct pad position', pS, pD, 'Anterolateral or anteroposterior on bare skin.<sup class="c">1</sup>'+(sc.chest.device?' Not over an implanted device.<sup class="c">6</sup>':''));
+  add('Pads connected to the AED', a.plugged?'pass':'fail', a.plugged?'Connector plugged in at '+fmt(a.pluggedAt)+'.':'The pad connector was never plugged in, so the AED could not analyse.','Follow the device prompts; some AEDs come pre-connected.<sup class="c">7</sup>');
+  if(a.firstAnalysisAt!=null||a.analyses){
+
+  }
+  if(a.shocks.length){
+    const safe=a.shocks.every(s=>s.clearOk&&!s.touching);
+    add('Safe shock', safe?'pass':'fail', safe?'Every shock delivered after “Stand clear”, with nobody touching.':'At least one shock without a clear call, or while the team was touching the patient.','Ensure nobody touches the patient during the shock.<sup class="c">1,3</sup>');
+    const mx=Math.max(...a.shocks.map(s=>s.delay));
+    add('Shock delivered without delay', mx<=5?'pass':(mx<=10?'part':'fail'), 'Longest delay from button arming to shock: '+f1(mx)+' s.','Keep the pre-shock pause as short as possible.<sup class="c">1</sup> Simulator target: within 5 s of arming.');
+  }
+  if(sc.rhythms.some(SHOCKABLE)){
+    const fs=a.shocks.length?a.shocks[0].t:null;
+    add('Time from AED arrival to first shock', fs==null?'fail':(fs<=60?'pass':(fs<=90?'part':'fail')), fs==null?'No shock delivered.':'First shock '+fmt(fs)+' after the AED arrived.','Each delay matters: in-hospital, defibrillation later than 2 min after arrest is linked to lower survival.<sup class="c">5</sup> Simulator target: within 60 s of AED arrival.');
+  }
+  add('AED kept on throughout', a.offEvents===0&&S.roscChoice!=='remove'&&S.roscChoice!=='off'?'pass':'fail', a.offEvents?'The AED was switched off '+a.offEvents+' time'+(a.offEvents>1?'s':'')+' during the arrest.':(S.roscChoice&&S.roscChoice!=='good'?'The AED was switched off after return of circulation.':'The AED stayed on.'),'Keep the AED on and attached; it keeps monitoring and is ready if the patient re-arrests.<sup class="c">7</sup>');
+
+  if(sc.rhythms.includes('ROSC') && S.roscChoice){
+    add('Response to signs of life', S.roscChoice==='good'?'pass':'fail', S.roscChoice==='good'?'Pads left attached and AED left on.':(S.roscChoice==='remove'?'Pads removed: a re-arrest would delay the next shock.':'AED switched off: it can no longer analyse if the patient re-arrests.'),'Keep the pads on and the AED on after return of circulation.<sup class="c">7</sup>');
+  }
+  const pts=rows.reduce((s,r)=>s+(r.status==='pass'?1:r.status==='part'?.5:0),0);
+  $('#dbTitle').textContent=sc.title;
+  $('#dbOutcome').textContent={rosc:'Outcome: return of spontaneous circulation.',team:'Outcome: care handed over to the resuscitation team.',early:'Scenario ended early.'}[S.outcome]||'';
+  $('#dbScore').textContent=Math.round(100*pts/Math.max(1,rows.length))+'%';
+  const pc={pass:'st-ok',part:'st-warn',fail:'st-bad'}, pt={pass:'Met',part:'Partly',fail:'Not met'};
+  $('#dbTable').innerHTML=rows.map(r=>`<tr><td>${esc(r.label)}</td><td><span class="status-pill ${pc[r.status]}">${pt[r.status]}</span></td><td>${esc(r.detail)}</td><td style="font-size:.85rem">${r.std}</td></tr>`).join('');
+  const metrics=[['AED on',a.onAt!=null?f1(a.onAt)+' s':'–'],['Pads connected',a.pluggedAt!=null?fmt(a.pluggedAt):'–'],['First analysis',a.firstAnalysisAt!=null?fmt(a.firstAnalysisAt):'–'],
+    ['First shock',a.shocks.length?fmt(a.shocks[0].t):'–'],['Shocks',a.shocks.length],['Analyses',a.analyses],['Pad contact alerts',a.padChecks]];
+  $('#dbMetrics').innerHTML=metrics.map(m=>`<div class="metric"><b>${m[1]}</b><span>${m[0]}</span></div>`).join('');
+  $('#dbTeach').innerHTML=sc.teach.map(x=>'<li>'+esc(x)+'</li>').join('')+'<li>Rhythms in this scenario: '+esc(sc.rhythms.map(r=>RH_NAMES[r]).join(' → '))+'.</li>';
+  $('#dbTimeline').innerHTML=S.log.map(l=>`<div class="${l.kind}"><span class="muted">${fmt(l.t)}</span>  ${esc(l.text)}</div>`).join('');
+}
+sizeCanvas(); requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
